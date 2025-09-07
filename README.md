@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>I LOVE YOU 粒子動畫</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 40px;
+      font-size: 24px;
+      background-color: #ff69b4;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <button id="startBtn">煒喆好帥</button>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let hearts = [];
+    let particles = [];
+    let mode = 0;
+    const totalHearts = 1000;
+
+    class Heart {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 6 + 2;
+        this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
+        this.speedX = (Math.random() - 0.5) * 2;
+        this.speedY = (Math.random() - 0.5) * 2;
+        this.target = null;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(Math.PI);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(0, -this.size, -this.size, -this.size, -this.size, 0);
+        ctx.bezierCurveTo(-this.size, this.size, 0, this.size * 1.5, 0, this.size * 2);
+        ctx.bezierCurveTo(0, this.size * 1.5, this.size, this.size, this.size, 0);
+        ctx.bezierCurveTo(this.size, -this.size, 0, -this.size, 0, 0);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      update() {
+        if (this.target) {
+          this.x += (this.target.x - this.x) * 0.05;
+          this.y += (this.target.y - this.y) * 0.05;
+        } else {
+          this.x += this.speedX;
+          this.y += this.speedY;
+          if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+          if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+        }
+      }
+    }
+
+    class Particle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 3 + 1; // ✅ 粒子更細小！
+        this.alpha = 1;
+        this.color = `rgba(255, 105, 180, ${this.alpha})`;
+        this.speedX = (Math.random() - 0.5) * 4;
+        this.speedY = (Math.random() - 0.5) * 4;
+        this.gravity = 0.05;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.fillStyle = this.color;
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      update() {
+        this.speedY += this.gravity;
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.alpha -= 0.01;
+        this.color = `rgba(255, 105, 180, ${this.alpha})`;
+      }
+    }
+
+    function createHearts() {
+      hearts = [];
+      for (let i = 0; i < totalHearts; i++) {
+        hearts.push(new Heart());
+      }
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let h of hearts) {
+        h.update();
+        h.draw();
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].alpha <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function createHeartShape() {
+      const points = [];
+      const scale = 18;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      for (let t = 0; t < Math.PI * 2; t += 0.03) {
+        let x = scale * 16 * Math.pow(Math.sin(t), 3);
+        let y = -scale * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        points.push({ x: centerX + x, y: centerY + y });
+      }
+
+      assignTargets(points);
+    }
+
+    function createTextShape(text) {
+      const points = [];
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+
+      tempCtx.fillStyle = 'white';
+      tempCtx.font = 'bold 80px Arial'; // 避免文字太大被截掉
+      tempCtx.textAlign = 'center';
+      tempCtx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+      const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < canvas.height; y += 4) {
+        for (let x = 0; x < canvas.width; x += 4) {
+          const index = (y * canvas.width + x) * 4;
+          if (imageData.data[index + 3] > 128) {
+            points.push({ x, y });
+          }
+        }
+      }
+
+      assignTargets(points);
+    }
+
+    function assignTargets(points) {
+      for (let i = 0; i < hearts.length; i++) {
+        let p = points[i % points.length];
+        hearts[i].target = { x: p.x, y: p.y };
+      }
+    }
+
+    function createParticleBurst() {
+      for (let i = 0; i < 300; i++) {
+        const x = canvas.width / 2 + (Math.random() - 0.5) * 300;
+        const y = canvas.height / 2 + (Math.random() - 0.5) * 300;
+        particles.push(new Particle(x, y));
+      }
+    }
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+      document.getElementById('startBtn').style.display = 'none';
+      createHearts();
+      animate();
+
+      setTimeout(() => {
+        mode = 1;
+        createHeartShape();
+      }, 2000);
+    });
+
+    canvas.addEventListener('click', () => {
+      if (mode === 1) {
+        mode = 2;
+        createTextShape('I   LOVE   YOU');
+        createParticleBurst();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
